@@ -136,6 +136,21 @@ class FakeFSTest < Minitest::Test
     end
   end
 
+  def test_raises_error_when_creating_a_new_dir_without_permissions
+    FileUtils.mkdir('test')
+    File.chmod(0, 'test')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises(Errno::EACCES) do
+        FileUtils.mkdir(string_or_pathname('test/no_permissions'))
+      end
+
+      assert_raises(Errno::EACCES) do
+        FileUtils.mkdir_p(string_or_pathname('test/no/permissions'))
+      end
+    end
+  end
+
   def test_can_create_directories_with_mkpath
     perform_with_both_string_paths_and_pathnames do
       FileUtils.mkpath(string_or_pathname('/path/to/dir'))
@@ -150,6 +165,17 @@ class FakeFSTest < Minitest::Test
     end
   end
 
+  def test_raises_error_when_creating_a_dir_with_mkpath_without_permissions
+    FileUtils.mkdir('test')
+    File.chmod(0, 'test')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises(Errno::EACCES) do
+        FileUtils.mkpath(string_or_pathname('test/no/permissions'))
+      end
+    end
+  end
+
   def test_can_create_directories_with_mkdirs
     perform_with_both_string_paths_and_pathnames do
       FileUtils.makedirs(string_or_pathname('/path/to/dir'))
@@ -161,6 +187,17 @@ class FakeFSTest < Minitest::Test
     perform_with_both_string_paths_and_pathnames do
       FileUtils.makedirs(string_or_pathname('/path/to/dir'), mode: 0o755)
       assert_kind_of FakeFS::FakeDir, FakeFS::FileSystem.fs['path']['to']['dir']
+    end
+  end
+
+  def test_raises_error_when_creating_a_dir_with_makedirs_without_permissions
+    FileUtils.mkdir('test')
+    File.chmod(0, 'test')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises(Errno::EACCES) do
+        FileUtils.makedirs(string_or_pathname('test/no/permissions'))
+      end
     end
   end
 
@@ -184,9 +221,57 @@ class FakeFSTest < Minitest::Test
     end
   end
 
+  def test_unlink_raises_error_with_rm_r_without_permissions
+    FileUtils.mkdir('test')
+    File.chmod(0, 'test')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises(Errno::EACCES) do
+        FileUtils.rm_r(string_or_pathname('test'))
+      end
+
+      assert_raises(Errno::EACCES) do
+        FileUtils.rm_rf(string_or_pathname('test'))
+      end
+    end
+  end
+
   def test_unlink_doesnt_error_on_file_not_found_with_rm_f
     perform_with_both_string_paths_and_pathnames do
       FileUtils.rm_f(string_or_pathname('/foo'))
+    end
+  end
+
+  def test_raises_error_when_unlinking_without_permissions
+    FileUtils.touch('test')
+    File.chmod(0, 'test')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises(Errno::EACCES) do
+        FileUtils.rm(string_or_pathname('test'))
+      end
+    end
+  end
+
+  def test_unlink_raises_error_with_rmdir_without_permissions
+    FileUtils.mkdir('test')
+    File.chmod(0, 'test')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises(Errno::EACCES) do
+        FileUtils.rmdir(string_or_pathname('test'))
+      end
+    end
+  end
+
+  def test_unlink_raises_error_with_rmtree_without_permissions
+    FileUtils.mkdir('test')
+    File.chmod(0, 'test')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises(Errno::EACCES) do
+        FileUtils.rmtree(string_or_pathname('test'))
+      end
     end
   end
 
@@ -339,6 +424,22 @@ class FakeFSTest < Minitest::Test
     end
   end
 
+  def test_raises_error_when_symlinking_without_permissions
+    FileUtils.mkdir('test')
+    File.chmod(0, 'test')
+    FileUtils.touch('file.txt')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises(Errno::EACCES) do
+        FileUtils.ln_s(string_or_pathname('file.txt'), string_or_pathname('test/test.txt'))
+      end
+
+      assert_raises(Errno::EACCES) do
+        FileUtils.ln(string_or_pathname('file.txt'), string_or_pathname('test/test.txt'))
+      end
+    end
+  end
+
   def test_can_follow_symlinks
     perform_with_both_string_paths_and_pathnames do
       FileUtils.mkdir_p(target = string_or_pathname('/path/to/target'))
@@ -465,6 +566,25 @@ class FakeFSTest < Minitest::Test
       File.open(file, 'w') { |f| f << 'some content' }
       assert File.exist?(file)
       FileUtils.rm(file)
+    end
+  end
+
+  def test_raises_error_when_opening_file_without_permissions
+    FileUtils.mkdir('test')
+    File.chmod(0, 'test')
+    FileUtils.touch('test.txt')
+    File.chmod(0, 'test.txt')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises(Errno::EACCES) do
+        # inside non-accessible directory
+        File.open(string_or_pathname('test/file.txt'), 'w') { |f| f << 'some content' }
+      end
+
+      assert_raises(Errno::EACCES) do
+        # non-accessible file
+        File.open(string_or_pathname('test.txt'), 'w') { |f| f << 'some content' }
+      end
     end
   end
 
@@ -882,6 +1002,32 @@ class FakeFSTest < Minitest::Test
     end
   end
 
+  def test_size_without_permissions
+    FileUtils.touch('file.txt')
+    File.chmod(0, 'file.txt')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_nil File.size?(string_or_pathname('file.txt'))
+    end
+  end
+
+  def test_raises_error_when_checking_size_without_permissions
+    FileUtils.mkdir('test')
+    File.chmod(0, 'test')
+    FileUtils.touch('test/file.txt')
+    FileUtils.touch('file.txt')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises(Errno::EACCES) do
+        File.size(string_or_pathname('file.txt'))
+      end
+
+      assert_raises(Errno::EACCES) do
+        File.size(string_or_pathname('test/file.txt'))
+      end
+    end
+  end
+
   def test_zero_on_empty_file
     perform_with_both_string_paths_and_pathnames do
       path = string_or_pathname('file.txt')
@@ -908,6 +1054,15 @@ class FakeFSTest < Minitest::Test
     perform_with_both_string_paths_and_pathnames do
       path = string_or_pathname('file_does_not_exist.txt')
       assert_equal false, File.zero?(path)
+    end
+  end
+
+  def test_zero_without_permissions
+    FileUtils.touch('file.txt')
+    File.chmod(0, 'file.txt')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_equal false, File.zero?(string_or_pathname('file.txt'))
     end
   end
 
@@ -938,6 +1093,15 @@ class FakeFSTest < Minitest::Test
       perform_with_both_string_paths_and_pathnames do
         path = string_or_pathname('file_does_not_exist.txt')
         assert_equal false, File.empty?(path)
+      end
+    end
+
+    def test_empty_without_permissions
+      FileUtils.touch('file.txt')
+      File.chmod(0, 'file.txt')
+
+      perform_with_both_string_paths_and_pathnames do
+        assert_equal false, File.empty?(string_or_pathname('file.txt'))
       end
     end
   else
@@ -986,6 +1150,17 @@ class FakeFSTest < Minitest::Test
     end
   end
 
+  def test_raises_error_on_mtime_without_permissions
+    FileUtils.touch('file.txt')
+    File.chmod(0, 'file.txt')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises Errno::EACCES do
+        File.mtime(string_or_pathname('file.txt'))
+      end
+    end
+  end
+
   def test_raises_error_on_ctime_if_file_does_not_exist
     perform_with_both_string_paths_and_pathnames do
       assert_raises Errno::ENOENT do
@@ -1002,6 +1177,17 @@ class FakeFSTest < Minitest::Test
     end
   end
 
+  def test_raises_error_on_ctime_without_permissions
+    FileUtils.touch('file.txt')
+    File.chmod(0, 'file.txt')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises Errno::EACCES do
+        File.ctime(string_or_pathname('file.txt'))
+      end
+    end
+  end
+
   def test_raises_error_on_atime_if_file_does_not_exist
     perform_with_both_string_paths_and_pathnames do
       assert_raises Errno::ENOENT do
@@ -1015,6 +1201,17 @@ class FakeFSTest < Minitest::Test
       File.open(path = string_or_pathname('foo'), 'w') { |f| f << 'some content' }
       assert File.atime(path).is_a?(Time)
       FileUtils.rm(path)
+    end
+  end
+
+  def test_raises_error_on_atime_without_permissions
+    FileUtils.touch('file.txt')
+    File.chmod(0, 'file.txt')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises Errno::EACCES do
+        File.atime(string_or_pathname('file.txt'))
+      end
     end
   end
 
@@ -1346,6 +1543,17 @@ class FakeFSTest < Minitest::Test
     end
   end
 
+  def test_raises_error_on_file_read_without_permissions
+    File.write('file.txt', 'content')
+    File.chmod(0, 'file.txt')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises Errno::EACCES do
+        File.read(string_or_pathname('file.txt'))
+      end
+    end
+  end
+
   def test_knows_files_are_files
     perform_with_both_string_paths_and_pathnames do
       path = string_or_pathname('file.txt')
@@ -1355,6 +1563,15 @@ class FakeFSTest < Minitest::Test
 
       assert File.file?(path)
       FileUtils.rm(path)
+    end
+  end
+
+  def test_check_file_without_permissions
+    FileUtils.touch('file.txt')
+    File.chmod(0, 'file.txt')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_equal false, File.file?(string_or_pathname('file.txt'))
     end
   end
 
@@ -1708,6 +1925,22 @@ class FakeFSTest < Minitest::Test
     end
   end
 
+  def test_copy_entry_without_permissions
+    FileUtils.mkdir_p(dir = string_or_pathname('path'))
+    FileUtils.touch('path/test.txt')
+    FileUtils.touch('path/file.txt')
+    File.chmod(0, 'path/file.txt')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises Errno::EACCES do
+        FileUtils.copy_entry(string_or_pathname('path'), string_or_pathname('copied_path'))
+      end
+
+      assert FileUtils.exist?(string_or_pathname('copied_path'))
+      assert false, FileUtils.exist?(string_or_pathname('copied_path/test.txt'))
+    end
+  end
+
   def test_dir_globs_paths
     FileUtils.mkdir_p '/path'
     File.open('/path/foo', 'w') { |f| f.write 'foo' }
@@ -1755,6 +1988,10 @@ class FakeFSTest < Minitest::Test
     Dir.chdir '/path' do
       assert_equal ['foo'], Dir['foo']
     end
+
+    # without permissions
+    File.chmod(0, '/path')
+    assert Dir['/path/**/*'].empty?
   end
 
   def test_file_utils_cp_allows_verbose_option
@@ -1795,6 +2032,21 @@ class FakeFSTest < Minitest::Test
       FileUtils.cp_r(path, string_or_pathname('/bar'), noop: true)
       refute File.exist?(string_or_pathname('/bar')), 'does not actually copy'
       FileUtils.rm(path)
+    end
+  end
+
+  def test_raises_error_on_cp_without_permissions
+    FileUtils.mkdir('test')
+    File.chmod(0, 'test')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises(Errno::EACCES) do
+        FileUtils.cp(string_or_pathname('test'), string_or_pathname('copy'))
+      end
+
+      assert_raises(Errno::EACCES) do
+        FileUtils.cp_r(string_or_pathname('test'), string_or_pathname('copy'))
+      end
     end
   end
 
@@ -2201,6 +2453,17 @@ class FakeFSTest < Minitest::Test
     end
   end
 
+  def test_unlink_raises_error_on_chdir_without_permissions
+    FileUtils.mkdir('test')
+    File.chmod(0, 'test')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises(Errno::EACCES) do
+        Dir.chdir(string_or_pathname('test')) {}
+      end
+    end
+  end
+
   def test_current_dir_reflected_by_pwd
     FileUtils.mkdir_p '/path'
     Dir.chdir('/path')
@@ -2346,6 +2609,22 @@ class FakeFSTest < Minitest::Test
     end
   end
 
+  def test_mv_raises_error_without_permissions
+    FileUtils.mkdir('no_permission')
+    File.chmod(0, 'no_permission')
+    FileUtils.mkdir('accessible')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises(Errno::EACCES) do
+        FileUtils.mv(string_or_pathname('accessible'), string_or_pathname('no_permission'))
+      end
+
+      assert_raises(Errno::EACCES) do
+        FileUtils.mv(string_or_pathname('no_permission'), string_or_pathname('accessible'))
+      end
+    end
+  end
+
   def test_mv_ignores_failures_when_using_force
     FileUtils.mkdir_p 'dir/stuff'
     FileUtils.touch ['stuff', 'other']
@@ -2357,6 +2636,19 @@ class FakeFSTest < Minitest::Test
     FileUtils.mv 'stuff', '/this/path/is/not/here', force: true
     assert File.exist?('stuff'), 'failed move remains where it was'
     refute File.exist?('/this/path/is/not/here'), 'nothing is created for a failed move'
+
+    # without permissions
+    FileUtils.touch('dir/stuff/foo')
+    File.chmod(0, 'dir/stuff')
+    FileUtils.mv 'dir/stuff/foo', 'dir', force: true
+    assert File.exist?('dir/stuff'), 'failed move remains where it was'
+    refute File.exist?('dir/foo'), 'nothing is created for a failed move'
+    File.chmod(0o755, 'dir/stuff')
+    File.mkdir('dir/bar')
+    File.chmod(0, 'dir/bar')
+    FileUtils.mv 'dir/stuff/foo', 'dir/bar', force: true
+    assert File.exist?('dir/stuff'), 'failed move remains where it was'
+    refute File.exist?('dir/bar/foo'), 'nothing is created for a failed move'
   end
 
   def test_cp_actually_works
@@ -2424,6 +2716,17 @@ class FakeFSTest < Minitest::Test
     File.open('foo', 'w') { |f| f.write 'bar' }
     FileUtils.copy_file('foo', 'baz', :ignore_param_1, :ignore_param_2)
     assert_equal 'bar', File.read('baz')
+  end
+
+  def test_copy_file_raises_error_without_permissions
+    FileUtils.mkdir('test')
+    File.chmod(0, 'test')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises(Errno::EACCES) do
+        FileUtils.copy_file(string_or_pathname('test'), string_or_pathname('foo'))
+      end
+    end
   end
 
   def test_cp_r_doesnt_tangle_files_together
@@ -2668,6 +2971,20 @@ class FakeFSTest < Minitest::Test
     end
   end
 
+  def test_symlink_raises_error_without_permissions
+    FileUtils.mkdir('test')
+    File.chmod(0, 'test')
+    FileUtils.touch('foo')
+
+    perform_with_both_string_paths_and_pathnames do
+      File.symlink(string_or_pathname('test/foo'), string_or_pathname('linked_foo'))
+
+      assert_raises(Errno::EACCES) do
+        File.symlink(string_or_pathname('foo'), string_or_pathname('test/foo'))
+      end
+    end
+  end
+
   def test_files_can_be_touched
     FileUtils.touch('touched_file')
     assert File.exist?('touched_file')
@@ -2690,9 +3007,29 @@ class FakeFSTest < Minitest::Test
     end
   end
 
+  def test_touch_raises_error_without_permissions
+    FileUtils.mkdir('test')
+    File.chmod(0, 'test')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises(Errno::EACCES) do
+        FileUtils.touch(string_or_pathname('test/file'))
+      end
+    end
+  end
+
   def test_extname
     perform_with_both_string_paths_and_pathnames do
       assert File.extname(string_or_pathname('test.doc')) == '.doc'
+    end
+  end
+
+  def test_extname_without_permissions
+    FileUtils.touch('file.txt')
+    File.chmod(0, 'file.txt')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert File.extname(string_or_pathname('file.txt')) == '.txt'
     end
   end
 
@@ -2712,6 +3049,17 @@ class FakeFSTest < Minitest::Test
     perform_with_both_string_paths_and_pathnames do
       assert_raises(Errno::ENOENT) do
         Dir.new(string_or_pathname('/this/path/should/not/be/here'))
+      end
+    end
+  end
+
+  def test_new_directory_raises_error_without_permissions
+    FileUtils.mkdir('not_accessible')
+    File.chmod(0, 'not_accessible')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises Errno::EACCES do
+        Dir.new(string_or_pathname('not_accessible/new'))
       end
     end
   end
@@ -3018,6 +3366,29 @@ class FakeFSTest < Minitest::Test
     test.each { |t| assert yielded.include?(t), "#{t} was not included in #{yielded.inspect}" }
   end
 
+  def test_dir_enumerators_raise_errors_without_permissions
+    FileUtils.mkdir('test')
+    File.chmod(0, 'test')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises Errno::EACCES do
+        Dir.entries(string_or_pathname('test'))
+      end
+
+      assert_raises Errno::EACCES do
+        Dir.children(string_or_pathname('test'))
+      end
+
+      assert_raises Errno::EACCES do
+        Dir.each_child(string_or_pathname('test')) {}
+      end
+
+      assert_raises Errno::EACCES do
+        Dir.foreach(string_or_pathname('test')) {}
+      end
+    end
+  end
+
   def test_directory_mkdir
     Dir.mkdir('/path')
     assert File.exist?('/path')
@@ -3126,12 +3497,30 @@ class FakeFSTest < Minitest::Test
     test.each { |t| assert yielded.include?(t) }
   end
 
+  def test_dir_open_raises_error_without_permissions
+    FileUtils.mkdir('test')
+    File.chmod(0, 'test')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises Errno::EACCES do
+        Dir.open(string_or_pathname('test'))
+      end
+    end
+  end
+
   def test_directory_exists
-    assert Dir.exist?('/this/path/should/be/here') == false
-    assert Dir.exist?('/this/path/should/be/here') == false
-    FileUtils.mkdir_p('/this/path/should/be/here')
-    assert Dir.exist?('/this/path/should/be/here') == true
-    assert Dir.exist?('/this/path/should/be/here') == true
+    perform_with_both_string_paths_and_pathnames do
+      path = string_or_pathname('/this/path/should/be/here')
+      assert Dir.exist?(path) == false
+      assert Dir.exist?(path) == false
+      FileUtils.mkdir_p(path)
+      assert Dir.exist?(path) == true
+      assert Dir.exist?(path) == true
+      File.chmod(0, path)
+      assert Dir.exist?(path) == true
+      File.chmod(0o755, path)
+      FileUtils.rmtree('/this')
+    end
   end
 
   def test_tmpdir
@@ -3233,6 +3622,17 @@ class FakeFSTest < Minitest::Test
     end
   end
 
+  def test_rename_raises_error_without_permissions
+    FileUtils.mkdir('test')
+    File.chmod(0, 'test')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises(Errno::EACCES) do
+        File.rename(string_or_pathname('test'), string_or_pathname('foo'))
+      end
+    end
+  end
+
   def test_hard_link_creates_file
     FileUtils.touch('/foo')
 
@@ -3248,6 +3648,17 @@ class FakeFSTest < Minitest::Test
     perform_with_both_string_paths_and_pathnames do
       assert_raises(Errno::ENOENT) do
         File.link(string_or_pathname('/foo'), string_or_pathname('/bar'))
+      end
+    end
+  end
+
+  def test_hard_link_without_permissions_raises_error
+    FileUtils.touch('foo')
+    File.chmod(0, 'foo')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises(Errno::EACCES) do
+        File.link(string_or_pathname('foo'), string_or_pathname('bar'))
       end
     end
   end
@@ -3289,6 +3700,17 @@ class FakeFSTest < Minitest::Test
   def test_file_stat_returns_file_stat_object
     FileUtils.touch('/foo')
     assert_equal File::Stat, File.stat('/foo').class
+  end
+
+  def test_file_stat_raises_error_without_permissions
+    FileUtils.touch('foo')
+    File.chmod(0, 'foo')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises Errno::EACCES do
+        File.stat('foo')
+      end
+    end
   end
 
   def test_can_delete_file_with_delete
@@ -4097,6 +4519,17 @@ class FakeFSTest < Minitest::Test
     assert_equal File.read('foo'), 'foobar'
   end
 
+  def test_file_write_raises_without_permissions
+    FileUtils.mkdir('test')
+    File.chmod(0, 'test')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises Errno::EACCES do
+        File.write(string_or_pathname('test/file.txt'), 'foo')
+      end
+    end
+  end
+
   def test_can_read_binary_data_in_binary_mode
     File.open('foo', 'wb') { |f| f << "\u0000\u0000\u0000\u0003\u0000\u0003\u0000\xA3\u0000\u0000\u0000y\u0000\u0000\u0000\u0000\u0000" }
     assert_equal "\x00\x00\x00\x03\x00\x03\x00\xA3\x00\x00\x00y\x00\x00\x00\x00\x00".force_encoding('ASCII-8BIT'), File.open('foo', 'rb').read
@@ -4133,6 +4566,17 @@ class FakeFSTest < Minitest::Test
     assert_equal File.stat('foo').birthtime, File.birthtime('foo')
   end
 
+  def test_file_birthtime_raises_without_permissions
+    FileUtils.touch('test')
+    File.chmod(0, 'test')
+
+    perform_with_both_string_paths_and_pathnames do
+      assert_raises Errno::EACCES do
+        File.birthtime(string_or_pathname('test'))
+      end
+    end
+  end
+
   def test_remove_entry_secure_removes_files
     perform_with_both_string_paths_and_pathnames do
       foo = string_or_pathname('foo')
@@ -4143,6 +4587,16 @@ class FakeFSTest < Minitest::Test
       File.open(foo, 'w') { |f| f << 'some content' }
       FileUtils.remove_entry_secure(foo, true)
       assert File.exist?(foo) == false
+
+      File.open(foo, 'w') { |f| f << 'some content' }
+      File.chmod(0, foo)
+      assert_raises Errno::EACCES do
+        FileUtils.remove_entry_secure(foo, true)
+      end
+
+      File.chmod(00644, foo)
+      assert File.exist?(foo) == true
+      FileUtils.rm(foo)
     end
   end
 
